@@ -112,7 +112,7 @@ export default function MonteCarloLattice() {
         <span className="t-label">■ PROBABILITY LATTICE · MONTE CARLO</span>
         <span className="flex gap-2 items-center">
           {busy && <span className="t-badge green md-blink">● SIMULATING</span>}
-          <span className="t-badge">{n.toLocaleString()} SIMS</span>
+          <span className="t-badge">{new Intl.NumberFormat('id-ID').format(n)} SIMS</span>
         </span>
       </header>
 

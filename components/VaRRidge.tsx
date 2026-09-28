@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-// @ts-ignore
-import Plotly from "plotly.js-dist-min";
 
 const GREEN = "#1e7a46", RED = "#b3382c", GOLD = "#b8860b", INK = "#191919", MUT = "#8a8578";
 
@@ -15,13 +13,6 @@ interface Asset {
 
 function normalPDF(x: number, mu: number, sigma: number): number {
   return (1 / (sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * ((x - mu) / sigma) ** 2);
-}
-
-function phi(x: number): number {
-  const t = 1 / (1 + 0.2316419 * Math.abs(x));
-  const d = 0.3989423 * Math.exp((-x * x) / 2);
-  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-  return x > 0 ? 1 - p : p;
 }
 
 const DEFAULT_ASSETS: Asset[] = [
@@ -45,7 +36,6 @@ export default function VaRRidge({ className = "" }: { className?: string }) {
   const means = assets.map((a) => a.mean / 100);
   const vols = assets.map((a) => a.vol / 100);
 
-  // Portfolio mean & variance
   const portMean = means.reduce((s, m, i) => s + weights[i] * m, 0);
   let portVar = 0;
   for (let i = 0; i < assets.length; i++) {
@@ -55,69 +45,75 @@ export default function VaRRidge({ className = "" }: { className?: string }) {
   }
   const portVol = Math.sqrt(portVar);
 
-  // Scale to horizon
   const muT = portMean * T;
   const sigmaT = portVol * Math.sqrt(T);
 
-  // VaR & CVaR (parametric, normal)
   const var5 = muT - 1.645 * sigmaT;
   const var1 = muT - 2.326 * sigmaT;
   const cvar5 = muT - (normalPDF(1.645, 0, 1) / 0.05) * sigmaT;
 
   useEffect(() => {
-    if (!plotRef.current) return;
+    let cancelled = false;
+    let plotly: any = null;
 
-    const xMin = muT - 3 * sigmaT;
-    const xMax = muT + 3 * sigmaT;
-    const N = 200;
-    const x = Array.from({ length: N }, (_, i) => xMin + (i / (N - 1)) * (xMax - xMin));
-    const y = x.map((xi) => normalPDF(xi, muT, sigmaT));
-    const yVar5 = x.map((xi) => (xi <= var5 ? normalPDF(xi, muT, sigmaT) : 0));
+    import("plotly.js-dist-min").then((mod: any) => {
+      if (cancelled || !plotRef.current) return;
+      plotly = mod.default ?? mod;
 
-    Plotly.newPlot(
-      plotRef.current,
-      [
-        {
-          x, y, type: "scatter", mode: "lines", fill: "tozeroy",
-          line: { color: MUT, width: 2 }, fillcolor: "rgba(138,133,120,0.2)",
-          name: "Distribusi", hoverinfo: "skip",
-        },
-        {
-          x, y: yVar5, type: "scatter", mode: "lines", fill: "tozeroy",
-          line: { color: RED, width: 0 }, fillcolor: "rgba(179,56,44,0.5)",
-          name: "Ekor Risiko (VaR 5%)", hoverinfo: "skip",
-        },
-      ],
-      {
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        margin: { l: 40, r: 20, t: 20, b: 40 },
-        xaxis: { title: "Return Portofolio (%)", gridcolor: "#ddd6c4", zerolinecolor: INK, zeroline: true },
-        yaxis: { title: "Density", gridcolor: "#ddd6c4", showgrid: false },
-        shapes: [
-          { type: "line", x0: muT, x1: muT, y0: 0, y1: Math.max(...y) * 0.9, line: { color: INK, width: 2, dash: "dash" } },
-          { type: "line", x0: var5, x1: var5, y0: 0, y1: Math.max(...y) * 0.9, line: { color: GOLD, width: 2, dash: "dash" } },
-          { type: "line", x0: var1, x1: var1, y0: 0, y1: Math.max(...y) * 0.9, line: { color: RED, width: 2, dash: "dash" } },
+      const xMin = muT - 3 * sigmaT;
+      const xMax = muT + 3 * sigmaT;
+      const N = 200;
+      const x = Array.from({ length: N }, (_, i) => xMin + (i / (N - 1)) * (xMax - xMin));
+      const y = x.map((xi) => normalPDF(xi, muT, sigmaT));
+      const yVar5 = x.map((xi) => (xi <= var5 ? normalPDF(xi, muT, sigmaT) : 0));
+      const yMax = Math.max(...y);
+
+      plotly.newPlot(
+        plotRef.current,
+        [
+          {
+            x, y, type: "scatter", mode: "lines", fill: "tozeroy",
+            line: { color: MUT, width: 2 }, fillcolor: "rgba(138,133,120,0.2)",
+            hoverinfo: "skip",
+          },
+          {
+            x, y: yVar5, type: "scatter", mode: "lines", fill: "tozeroy",
+            line: { color: RED, width: 0 }, fillcolor: "rgba(179,56,44,0.5)",
+            hoverinfo: "skip",
+          },
         ],
-        annotations: [
-          { x: muT, y: Math.max(...y) * 0.92, text: `Mean ${(muT * 100).toFixed(1)}%`, showarrow: false, font: { size: 9, color: INK } },
-          { x: var5, y: Math.max(...y) * 0.92, text: `VaR 5% ${(var5 * 100).toFixed(1)}%`, showarrow: false, font: { size: 9, color: GOLD } },
-          { x: var1, y: Math.max(...y) * 0.92, text: `VaR 1% ${(var1 * 100).toFixed(1)}%`, showarrow: false, font: { size: 9, color: RED } },
-        ],
-        font: { family: "IBM Plex Mono, monospace", color: INK },
-        showlegend: false,
-      },
-      { displayModeBar: false, responsive: true }
-    );
+        {
+          paper_bgcolor: "rgba(0,0,0,0)",
+          plot_bgcolor: "rgba(0,0,0,0)",
+          margin: { l: 40, r: 20, t: 20, b: 40 },
+          xaxis: { title: "Return Portofolio (%)", gridcolor: "#ddd6c4", zerolinecolor: INK, zeroline: true },
+          yaxis: { title: "Density", showgrid: false },
+          shapes: [
+            { type: "line", x0: muT, x1: muT, y0: 0, y1: yMax * 0.9, line: { color: INK, width: 2, dash: "dash" } },
+            { type: "line", x0: var5, x1: var5, y0: 0, y1: yMax * 0.9, line: { color: GOLD, width: 2, dash: "dash" } },
+            { type: "line", x0: var1, x1: var1, y0: 0, y1: yMax * 0.9, line: { color: RED, width: 2, dash: "dash" } },
+          ],
+          annotations: [
+            { x: muT, y: yMax * 0.92, text: `Mean ${(muT * 100).toFixed(1)}%`, showarrow: false, font: { size: 9, color: INK } },
+            { x: var5, y: yMax * 0.92, text: `VaR 5% ${(var5 * 100).toFixed(1)}%`, showarrow: false, font: { size: 9, color: GOLD } },
+            { x: var1, y: yMax * 0.92, text: `VaR 1% ${(var1 * 100).toFixed(1)}%`, showarrow: false, font: { size: 9, color: RED } },
+          ],
+          font: { family: "IBM Plex Mono, monospace", color: INK },
+          showlegend: false,
+        },
+        { displayModeBar: false, responsive: true }
+      );
+    });
 
     return () => {
-      if (plotRef.current) Plotly.purge(plotRef.current);
+      cancelled = true;
+      if (plotly && plotRef.current) plotly.purge(plotRef.current);
     };
   }, [muT, sigmaT, var5, var1]);
 
-  const updateAsset = (i: number, field: keyof Asset, val: number) => {
+  const updateAsset = (i: number, field: keyof Asset, val: number | string) => {
     const next = [...assets];
-    next[i] = { ...next[i], [field]: val };
+    next[i] = { ...next[i], [field]: val } as Asset;
     setAssets(next);
   };
 
@@ -143,7 +139,7 @@ export default function VaRRidge({ className = "" }: { className?: string }) {
               <input
                 type="text"
                 value={a.name}
-                onChange={(e) => updateAsset(i, "name", e.target.value as any)}
+                onChange={(e) => updateAsset(i, "name", e.target.value)}
                 className="w-full bg-transparent border border-[#2a2a2a] px-2 py-1 text-[11px] font-bold outline-none focus:border-[#1e7a46]"
               />
               <div className="grid grid-cols-3 gap-1">
@@ -204,14 +200,14 @@ export default function VaRRidge({ className = "" }: { className?: string }) {
           </div>
           <div className="border border-[#2a2a2a] p-2 space-y-1">
             <div className="t-label" style={{ color: MUT }}>INTERPRETASI</div>
-            <div>VaR 5% = 95% yakin loss ≤ {(var5 * 100).toFixed(1)}% dalam {months} bulan</div>
+            <div>VaR 5% = 95% yakin loss ≤ {(Math.abs(var5) * 100).toFixed(1)}% dalam {months} bulan</div>
             <div>CVaR 5% = rata-rata loss kalau sudah melewati VaR 5%</div>
           </div>
         </div>
       </div>
 
       <footer className="px-3 py-1.5 border-t border-[#2a2a2a] text-[9px]" style={{ color: MUT }}>
-        VaR parametric (normal) · σ_T = σ·√T · ekor merah = P(R &lt; VaR 5%)
+        VaR parametric (normal) · σ_T = σ·√T · ekor merah = P(R &lt; VaR 5%) · plot dimuat client-side (dynamic import)
       </footer>
     </section>
   );

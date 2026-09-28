@@ -4,6 +4,9 @@ import { useState } from "react";
 import MonteCarloLattice from "@/components/MonteCarloLattice";
 import KillGrid from "@/components/KillGrid";
 import VaRRidge from "@/components/VaRRidge";
+import MoneyMgmt from "@/components/MoneyMgmt";
+import ScenarioAnalysis from "@/components/ScenarioAnalysis";
+import BlackScholes from "@/components/BlackScholes";
 
 const TABS = ["LATTICE", "KILL GRID", "VaR RIDGE", "MONEY MGMT", "SCENARIO", "BLACK-SCHOLES"] as const;
 
@@ -32,15 +35,9 @@ export default function ToolsPage() {
       {tab === "LATTICE" && <MonteCarloLattice />}
       {tab === "KILL GRID" && <KillGrid />}
       {tab === "VaR RIDGE" && <VaRRidge />}
-      {tab !== "LATTICE" && tab !== "KILL GRID" && tab !== "VaR RIDGE" && (
-        <section className="t-panel">
-          <header className="t-head">
-            <span className="t-label">■ {tab}</span>
-            <span className="t-badge gold">SEGERA</span>
-          </header>
-          <div className="p-10 text-center t-label">● MODULE {tab} — DIBANGUN CHUNK BERIKUTNYA ●</div>
-        </section>
-      )}
+      {tab === "MONEY MGMT" && <MoneyMgmt />}
+      {tab === "SCENARIO" && <ScenarioAnalysis />}
+      {tab === "BLACK-SCHOLES" && <BlackScholes />}
     </main>
   );
 }
