@@ -9,6 +9,8 @@ import RegimeTower from "@/components/RegimeTower";
 import LiquidityV2 from "@/components/LiquidityV2";
 import HeatGrid from "@/components/HeatGrid";
 import TopologyTabs from "@/components/TopologyTabs";
+import NetLiquidity from "@/components/NetLiquidity";
+import PolicyPanel from "@/components/PolicyPanel";
 
 const GREEN = "#1e7a46";
 const RED = "#b3382c";
@@ -37,10 +39,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Record<string, SeriesData | null>>({});
   const [narrative, setNarrative] = useState<ReturnType<typeof generateNarrative> | null>(null);
-  const [tab, setTab] = useState<"REGIME" | "LIQUIDITY" | "TOPOLOGY">("REGIME");
+  const [tab, setTab] = useState<"REGIME" | "LIQUIDITY" | "POLICY" | "TOPOLOGY">("REGIME");
   const [clock, setClock] = useState("");
 
-  const IDS = ["DGS10", "T10YIE", "T10Y2Y", "UNRATE", "CPIAUCSL", "M2SL", "DTWEXBGS"];
+  const IDS = ["DGS10", "T10YIE", "T10Y2Y", "UNRATE", "CPIAUCSL", "M2SL", "DTWEXBGS", "DFF", "PCEPILFE", "WALCL", "WTREGEN", "RRPONTSYD"];
 
   useEffect(() => {
     (async () => {
@@ -187,6 +189,13 @@ export default function Home() {
               BIAS: {narrative?.bias ?? "…"}
             </div>
           </section>
+        </div>
+      )}
+
+      {tab === "POLICY" && (
+        <div className="grid grid-cols-12 gap-3">
+          <NetLiquidity className="col-span-12 lg:col-span-7" walcl={obs("WALCL")} tga={obs("WTREGEN")} rrp={obs("RRPONTSYD")} m2={obs("M2SL")} />
+          <PolicyPanel className="col-span-12 lg:col-span-5" dff={obs("DFF")} pceCore={obs("PCEPILFE")} cpiYoY={cpi} />
         </div>
       )}
 

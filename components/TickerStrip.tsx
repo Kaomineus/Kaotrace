@@ -14,10 +14,10 @@ function Badge({ label, value, color }: { label: string; value: string; color: s
 export default function TickerStrip({ ry, regime, sahm, cpi, m2Trend, confidence, clock, tab, setTab }: {
   ry: number; regime: string; sahm: number; cpi: number; m2Trend: string;
   confidence: number; clock: string;
-  tab: string; setTab: (t: "REGIME" | "LIQUIDITY" | "TOPOLOGY") => void;
+  tab: string; setTab: (t: "REGIME" | "LIQUIDITY" | "POLICY" | "TOPOLOGY") => void;
 }) {
   const big = isNaN(ry) ? " ---- " : `${ry >= 0 ? "+" : "-"}${Math.abs(ry).toFixed(2)}%`;
-  const tabs = ["REGIME", "LIQUIDITY", "TOPOLOGY"] as const;
+  const tabs = ["REGIME", "LIQUIDITY", "POLICY", "TOPOLOGY"] as const;
   const active = { background: "#191919", color: "#f6f3ea" };
 
   return (
