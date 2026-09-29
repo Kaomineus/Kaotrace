@@ -33,6 +33,7 @@ export default function TickerStrip({ ry, regime, sahm, cpi, m2Trend, confidence
         <span className="ml-auto t-badge">{clock} WIB</span>
         <a href="/tools" className="t-badge gold">F2 TOOLKIT →</a>
         <a href="/crypto" className="t-badge">F3 CRYPTO →</a>
+        <a href="/events" className="t-badge">F4 EVENTS →</a>
       </div>
       <div className="flex gap-1 px-3 py-1.5">
         {tabs.map((t) => (

@@ -76,9 +76,14 @@ export default function ConstellationV2({
   const [clock, setClock] = useState("");
   const [flipAlert, setFlipAlert] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState("—");
+  const [dims, setDims] = useState({ w: 760, h: 470 });
   const [view, setView] = useState({ x: 0, y: 0, w: 760, h: 470 });
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ px: number; py: number; vx: number; vy: number } | null>(null);
+
+  const W = 760;
+  const H = Math.max(320, Math.round(W * (dims.h / dims.w)));
 
   useEffect(() => {
     const tick = () => setClock(new Date().toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour12: false }));
@@ -86,6 +91,22 @@ export default function ConstellationV2({
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((es) => {
+      const r = es[0].contentRect;
+      if (r.width > 0 && r.height > 0) setDims({ w: r.width, h: r.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setView({ x: 0, y: 0, w: W, h: H });
+  }, [H]);
 
   useEffect(() => {
     const prev = localStorage.getItem("md_regime");
@@ -105,8 +126,8 @@ export default function ConstellationV2({
       e.preventDefault();
       const f = e.deltaY > 0 ? 1.15 : 0.87;
       setView((v) => {
-        const nw = Math.min(760 * 2, Math.max(760 * 0.25, v.w * f));
-        const nh = nw * (470 / 760);
+        const nw = Math.min(W * 2, Math.max(W * 0.25, v.w * f));
+        const nh = nw * (H / W);
         const rect = el.getBoundingClientRect();
         const mx = ((e.clientX - rect.left) / rect.width) * v.w + v.x;
         const my = ((e.clientY - rect.top) / rect.height) * v.h + v.y;
@@ -115,12 +136,12 @@ export default function ConstellationV2({
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [H]);
 
   const scaleView = (f: number) =>
     setView((v) => {
-      const nw = Math.min(760 * 2, Math.max(760 * 0.25, v.w * f));
-      const nh = nw * (470 / 760);
+      const nw = Math.min(W * 2, Math.max(W * 0.25, v.w * f));
+      const nh = nw * (H / W);
       const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
       return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
     });
@@ -155,7 +176,7 @@ export default function ConstellationV2({
     return <section className={`t-panel ${className}`}><div className="p-10 text-center t-label">● MENUNGGU DATA…</div></section>;
   }
 
-  const W = 760, H = 470, L = 46, R = 16, T = 16, B = 34;
+  const L = 46, R = 16, T = 16, B = 34;
   const tsArr = enriched.map((p) => p.ts), ryArr = enriched.map((p) => p.ry);
   const tsMin = Math.min(...tsArr), tsMax = Math.max(...tsArr);
   const ryMin = Math.min(...ryArr), ryMax = Math.max(...ryArr);
@@ -184,7 +205,7 @@ export default function ConstellationV2({
   const cur = now.reg;
 
   return (
-    <section className={`t-panel ${className}`}>
+    <section className={`t-panel relative flex flex-col ${className}`}>
       <style>{CSS}</style>
       <header className="t-head">
         <span className="t-label">■ MACRO CONSTELLATION v2 · MIROFISH FORCE GRAPH</span>
@@ -194,7 +215,7 @@ export default function ConstellationV2({
         </span>
       </header>
 
-      <div className="relative grid grid-cols-12">
+      <div className="relative grid grid-cols-12 flex-1">
         {flipAlert && (
           <div className="absolute left-1/2 top-2 -translate-x-1/2 z-10 px-3 py-1.5 text-[10px] font-bold"
             style={{ background: "#f7edc4", border: "1px solid #8a6d1a", color: "#8a6d1a" }}>
@@ -216,88 +237,91 @@ export default function ConstellationV2({
           <div style={{ color: MUT }}>SIZE = M2 MoM</div>
         </div>
 
-        <div className="col-span-9 md:col-span-7 p-2 relative">
+        <div className="col-span-9 md:col-span-7 p-2 relative flex flex-col">
           <div className="absolute right-3 top-3 z-10 flex gap-1">
             <button className="t-badge" onClick={() => scaleView(0.8)}>+</button>
             <button className="t-badge" onClick={() => scaleView(1.25)}>−</button>
             <button className="t-badge" onClick={() => setView({ x: 0, y: 0, w: W, h: H })}>RESET</button>
           </div>
-          <svg
-            ref={svgRef}
-            viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-            width="100%"
-            className="cursor-grab active:cursor-grabbing select-none"
-            style={{ touchAction: "none" }}
-            onMouseLeave={() => { setHover(null); drag.current = null; }}
-            onPointerDown={(e) => {
-              drag.current = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y };
-            }}
-            onPointerMove={(e) => {
-              const dc = drag.current;
-              if (!dc || !svgRef.current) return;
-              const rect = svgRef.current.getBoundingClientRect();
-              const dx = ((e.clientX - dc.px) / rect.width) * view.w;
-              const dy = ((e.clientY - dc.py) / rect.height) * view.h;
-              const nx = dc.vx - dx;
-              const ny = dc.vy - dy;
-              setView((v) => ({ ...v, x: nx, y: ny }));
-            }}
-            onPointerUp={() => (drag.current = null)}
-          >
-            {[0.25, 0.5, 0.75].map((f) => (
-              <g key={f} stroke={GRID} strokeDasharray="2 4">
-                <line x1={L} x2={W - R} y1={T + (H - T - B) * f} y2={T + (H - T - B) * f} />
-                <line y1={T} y2={H - B} x1={L + (W - L - R) * f} x2={L + (W - L - R) * f} />
+          <div ref={wrapRef} className="flex-1 min-h-0 w-full">
+            <svg
+              ref={svgRef}
+              viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+              width="100%"
+              height="100%"
+              className="cursor-grab active:cursor-grabbing select-none"
+              style={{ touchAction: "none" }}
+              onMouseLeave={() => { setHover(null); drag.current = null; }}
+              onPointerDown={(e) => {
+                drag.current = { px: e.clientX, py: e.clientY, vx: view.x, vy: view.y };
+              }}
+              onPointerMove={(e) => {
+                const dc = drag.current;
+                if (!dc || !svgRef.current) return;
+                const rect = svgRef.current.getBoundingClientRect();
+                const dx = ((e.clientX - dc.px) / rect.width) * view.w;
+                const dy = ((e.clientY - dc.py) / rect.height) * view.h;
+                const nx = dc.vx - dx;
+                const ny = dc.vy - dy;
+                setView((v) => ({ ...v, x: nx, y: ny }));
+              }}
+              onPointerUp={() => (drag.current = null)}
+            >
+              {[0.25, 0.5, 0.75].map((f) => (
+                <g key={f} stroke={GRID} strokeDasharray="2 4">
+                  <line x1={L} x2={W - R} y1={T + (H - T - B) * f} y2={T + (H - T - B) * f} />
+                  <line y1={T} y2={H - B} x1={L + (W - L - R) * f} x2={L + (W - L - R) * f} />
+                </g>
+              ))}
+              {tsMin < 0 && tsMax > 0 && <line x1={X(0)} x2={X(0)} y1={T} y2={H - B} stroke={MUT} strokeDasharray="4 4" />}
+              {ryMin < 0 && ryMax > 0 && <line x1={L} x2={W - R} y1={Y(0)} y2={Y(0)} stroke={MUT} strokeDasharray="4 4" />}
+
+              <text x={L + 8} y={T + 14} fontSize={9} fill={MUT}>PRE-RECESSION</text>
+              <text x={W - R - 8} y={T + 14} fontSize={9} fill={MUT} textAnchor="end">OVERHEAT</text>
+              <text x={L + 8} y={H - B - 8} fontSize={9} fill={MUT}>DEEP RECESSION</text>
+              <text x={W - R - 8} y={H - B - 8} fontSize={9} fill={MUT} textAnchor="end">GOLDILOCKS</text>
+              <text transform={`rotate(-90 12 ${H / 2})`} x={12} y={H / 2} fontSize={9} fill={MUT} textAnchor="middle">↑ REAL YIELD</text>
+              <text x={W / 2} y={H - B + 20} fontSize={9} fill={MUT} textAnchor="middle">TERM SPREAD →</text>
+              <text x={L} y={H - B + 20} fontSize={9} fill={INK}>{tsMin.toFixed(1)}</text>
+              <text x={W - R} y={H - B + 20} fontSize={9} fill={INK} textAnchor="end">{tsMax.toFixed(1)}</text>
+              <text x={L - 8} y={T + 10} fontSize={9} fill={INK} textAnchor="end">{ryMax.toFixed(1)}</text>
+              <text x={L - 8} y={H - B} fontSize={9} fill={INK} textAnchor="end">{ryMin.toFixed(1)}</text>
+
+              <path d={d} fill="none" stroke={BLUE} strokeWidth={2} strokeDasharray="6 6" className="md-traj" />
+
+              {enriched.map((p, i) => (
+                <g key={p.date} className="md-node" style={{ animationDelay: `${i * 15}ms` }} onMouseEnter={() => setHover(i)}>
+                  {p.cpi > 4 && <circle cx={X(p.ts)} cy={Y(p.ry)} r={rad(p) + 4} fill="none" stroke={REG[p.reg].c} strokeOpacity={0.5} />}
+                  <circle cx={X(p.ts)} cy={Y(p.ry)} r={rad(p)} fill={REG[p.reg].c} fillOpacity={0.85} />
+                  {p.yearLabel !== "" && (
+                    <text x={X(p.ts) + 7} y={Y(p.ry) - 7} fontSize={9} fill={BLUE} fontWeight={700}>{p.yearLabel}</text>
+                  )}
+                </g>
+              ))}
+
+              <g pointerEvents="none">
+                <circle cx={hubX} cy={hubY} r={14} fill="none" stroke={REG[hubReg].c} strokeWidth={1.5} />
+                <circle cx={hubX} cy={hubY} r={19} fill="none" stroke={REG[hubReg].c} strokeOpacity={0.4} />
+                <text x={hubX + 22} y={hubY + 3} fontSize={9} fill={REG[hubReg].c} fontWeight={700}>HUB {bn}mo</text>
               </g>
-            ))}
-            {tsMin < 0 && tsMax > 0 && <line x1={X(0)} x2={X(0)} y1={T} y2={H - B} stroke={MUT} strokeDasharray="4 4" />}
-            {ryMin < 0 && ryMax > 0 && <line x1={L} x2={W - R} y1={Y(0)} y2={Y(0)} stroke={MUT} strokeDasharray="4 4" />}
 
-            <text x={L + 8} y={T + 14} fontSize={9} fill={MUT}>PRE-RECESSION</text>
-            <text x={W - R - 8} y={T + 14} fontSize={9} fill={MUT} textAnchor="end">OVERHEAT</text>
-            <text x={L + 8} y={H - B - 8} fontSize={9} fill={MUT}>DEEP RECESSION</text>
-            <text x={W - R - 8} y={H - B - 8} fontSize={9} fill={MUT} textAnchor="end">GOLDILOCKS</text>
-            <text x={14} y={T + 6} fontSize={9} fill={MUT}>↑ REAL YIELD</text>
-            <text x={W / 2} y={H - B + 20} fontSize={9} fill={MUT} textAnchor="middle">TERM SPREAD →</text>
-            <text x={L} y={H - B + 20} fontSize={9} fill={INK}>{tsMin.toFixed(1)}</text>
-            <text x={W - R} y={H - B + 20} fontSize={9} fill={INK} textAnchor="end">{tsMax.toFixed(1)}</text>
-            <text x={L - 8} y={T + 10} fontSize={9} fill={INK} textAnchor="end">{ryMax.toFixed(1)}</text>
-            <text x={L - 8} y={H - B} fontSize={9} fill={INK} textAnchor="end">{ryMin.toFixed(1)}</text>
-
-            <path d={d} fill="none" stroke={BLUE} strokeWidth={2} strokeDasharray="6 6" className="md-traj" />
-
-            {enriched.map((p, i) => (
-              <g key={p.date} className="md-node" style={{ animationDelay: `${i * 15}ms` }} onMouseEnter={() => setHover(i)}>
-                {p.cpi > 4 && <circle cx={X(p.ts)} cy={Y(p.ry)} r={rad(p) + 4} fill="none" stroke={REG[p.reg].c} strokeOpacity={0.5} />}
-                <circle cx={X(p.ts)} cy={Y(p.ry)} r={rad(p)} fill={REG[p.reg].c} fillOpacity={0.85} />
-                {p.yearLabel !== "" && (
-                  <text x={X(p.ts) + 7} y={Y(p.ry) - 7} fontSize={9} fill={BLUE} fontWeight={700}>{p.yearLabel}</text>
-                )}
+              <g pointerEvents="none">
+                <circle className="md-pulse" cx={X(now.ts)} cy={Y(now.ry)} r={9} fill="none" stroke={RED} strokeWidth={1.5} />
+                <circle className="md-pulse" style={{ animationDelay: "1s" }} cx={X(now.ts)} cy={Y(now.ry)} r={9} fill="none" stroke={RED} />
+                <circle cx={X(now.ts)} cy={Y(now.ry)} r={5} fill={RED} />
+                <text x={X(now.ts) + 12} y={Y(now.ry) + 3} fontSize={10} fontWeight={700} fill={RED}>NOW {now.date}</text>
               </g>
-            ))}
 
-            <g pointerEvents="none">
-              <circle cx={hubX} cy={hubY} r={14} fill="none" stroke={REG[hubReg].c} strokeWidth={1.5} />
-              <circle cx={hubX} cy={hubY} r={19} fill="none" stroke={REG[hubReg].c} strokeOpacity={0.4} />
-              <text x={hubX + 22} y={hubY + 3} fontSize={9} fill={REG[hubReg].c} fontWeight={700}>HUB {bn}mo</text>
-            </g>
-
-            <g pointerEvents="none">
-              <circle className="md-pulse" cx={X(now.ts)} cy={Y(now.ry)} r={9} fill="none" stroke={RED} strokeWidth={1.5} />
-              <circle className="md-pulse" style={{ animationDelay: "1s" }} cx={X(now.ts)} cy={Y(now.ry)} r={9} fill="none" stroke={RED} />
-              <circle cx={X(now.ts)} cy={Y(now.ry)} r={5} fill={RED} />
-              <text x={X(now.ts) + 12} y={Y(now.ry) + 3} fontSize={10} fontWeight={700} fill={RED}>NOW {now.date}</text>
-            </g>
-
-            {hover !== null && (
-              <g transform={`translate(${X(enriched[hover].ts) > W - 180 ? X(enriched[hover].ts) - 165 : X(enriched[hover].ts) + 12},${Math.max(10, Y(enriched[hover].ry) - 62)})`} pointerEvents="none">
-                <rect width="155" height="56" fill="#f6f3ea" stroke="#2a2a2a" />
-                <text x="7" y="15" fontSize={10} fontWeight="700" fill={INK}>{enriched[hover].date}</text>
-                <text x="7" y="30" fontSize={10} fill={INK}>TS {enriched[hover].ts.toFixed(2)} · RY {enriched[hover].ry.toFixed(2)}</text>
-                <text x="7" y="45" fontSize={10} fill={INK}>M2 {enriched[hover].m2mom}% · CPI {enriched[hover].cpi}%</text>
-              </g>
-            )}
-          </svg>
+              {hover !== null && (
+                <g transform={`translate(${X(enriched[hover].ts) > W - 180 ? X(enriched[hover].ts) - 165 : X(enriched[hover].ts) + 12},${Math.max(10, Y(enriched[hover].ry) - 62)})`} pointerEvents="none">
+                  <rect width="155" height="56" fill="#f6f3ea" stroke="#2a2a2a" />
+                  <text x="7" y="15" fontSize={10} fontWeight="700" fill={INK}>{enriched[hover].date}</text>
+                  <text x="7" y="30" fontSize={10} fill={INK}>TS {enriched[hover].ts.toFixed(2)} · RY {enriched[hover].ry.toFixed(2)}</text>
+                  <text x="7" y="45" fontSize={10} fill={INK}>M2 {enriched[hover].m2mom}% · CPI {enriched[hover].cpi}%</text>
+                </g>
+              )}
+            </svg>
+          </div>
         </div>
 
         <div className="col-span-12 md:col-span-3 p-3 border-l border-[#2a2a2a] space-y-2 text-[11px]">
@@ -325,10 +349,9 @@ export default function ConstellationV2({
         </div>
       </div>
 
-      <footer className="px-3 py-1.5 border-t border-[#2a2a2a] text-[9px] tracking-wider uppercase flex justify-between" style={{ color: MUT }}>
-        <span>X: TERM SPREAD · Y: REAL YIELD · hover = detail · SCROLL = ZOOM · DRAG = PAN</span>
-        <span>LAST SCAN {lastScan} · NEXT 6H</span>
-      </footer>
+      <div className="absolute bottom-0.5 left-2 right-2 flex pointer-events-none text-[8px] tracking-wider uppercase" style={{ color: MUT, opacity: 0.7 }}>
+        <span className="ml-auto">scan {lastScan} · next 6h</span>
+      </div>
     </section>
   );
 }

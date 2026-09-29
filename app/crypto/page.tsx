@@ -14,7 +14,7 @@ export default function CryptoPage() {
   const active = { background: "#191919", color: "#f6f3ea" };
 
   return (
-    <main className="min-h-screen max-w-[1440px] mx-auto p-3 md:p-4 space-y-3">
+    <main className="min-h-screen w-full p-2 md:p-3 space-y-2 md:space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] tracking-widest uppercase">
         <span>● MAKRODECK · F3 · CRYPTO ANALYZER</span>
         <span className="flex gap-2">

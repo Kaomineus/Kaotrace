@@ -11,6 +11,8 @@ import HeatGrid from "@/components/HeatGrid";
 import TopologyTabs from "@/components/TopologyTabs";
 import NetLiquidity from "@/components/NetLiquidity";
 import PolicyPanel from "@/components/PolicyPanel";
+import RiskAppetite from "@/components/RiskAppetite";
+import FiscalGeopol from "@/components/FiscalGeopol";
 
 const GREEN = "#1e7a46";
 const RED = "#b3382c";
@@ -42,7 +44,7 @@ export default function Home() {
   const [tab, setTab] = useState<"REGIME" | "LIQUIDITY" | "POLICY" | "TOPOLOGY">("REGIME");
   const [clock, setClock] = useState("");
 
-  const IDS = ["DGS10", "T10YIE", "T10Y2Y", "UNRATE", "CPIAUCSL", "M2SL", "DTWEXBGS", "DFF", "PCEPILFE", "WALCL", "WTREGEN", "RRPONTSYD"];
+  const IDS = ["DGS10", "T10YIE", "T10Y2Y", "UNRATE", "CPIAUCSL", "M2SL", "DTWEXBGS", "DFF", "PCEPILFE", "WALCL", "WTREGEN", "RRPONTSYD", "VIXCLS", "BAMLH0A0HYM2", "NASDAQ100"];
 
   useEffect(() => {
     (async () => {
@@ -128,7 +130,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen max-w-[1440px] mx-auto p-3 space-y-3">
+    <main className="min-h-screen w-full p-2 md:p-3 space-y-2 md:space-y-3">
       <TickerStrip
         ry={ry} regime={regime} sahm={sahm.value} cpi={cpi}
         m2Trend={trend(obs("M2SL")).toUpperCase()} confidence={confidence}
@@ -196,6 +198,8 @@ export default function Home() {
         <div className="grid grid-cols-12 gap-3">
           <NetLiquidity className="col-span-12 lg:col-span-7" walcl={obs("WALCL")} tga={obs("WTREGEN")} rrp={obs("RRPONTSYD")} m2={obs("M2SL")} />
           <PolicyPanel className="col-span-12 lg:col-span-5" dff={obs("DFF")} pceCore={obs("PCEPILFE")} cpiYoY={cpi} />
+          <RiskAppetite className="col-span-12 lg:col-span-7" vix={obs("VIXCLS")} oas={obs("BAMLH0A0HYM2")} ndq={obs("NASDAQ100")} />
+          <FiscalGeopol className="col-span-12 lg:col-span-5" />
         </div>
       )}
 
