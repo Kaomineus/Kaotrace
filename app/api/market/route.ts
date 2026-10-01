@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
-async function fetchWithTimeout(url: string, ms = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, ms = 8000, opts: RequestInit = {}): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { signal: ctrl.signal });
+    return await fetch(url, { ...opts, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }
 }
+
+const BROWSER_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  Accept: "application/json,text/plain,*/*",
+};
 
 export async function GET(req: NextRequest) {
   const src = req.nextUrl.searchParams.get("src");
@@ -34,11 +39,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(json, { headers: { "Cache-Control": "public, max-age=3600" } });
     }
     if (src === "ff") {
-      const week = w === "next" ? "nextweek" : "thisweek";
-      const res = await fetchWithTimeout(`https://nfs.faireconomy.media/ff_calendar_${week}.json`);
+      const week = w === "next" ? "nextweek" : w === "last" ? "lastweek" : "thisweek";
+      const url = `https://nfs.faireconomy.media/ff_calendar_${week}.json`;
+      let res = await fetchWithTimeout(url, 10000, { headers: BROWSER_HEADERS });
+      if (!res.ok) res = await fetchWithTimeout(url, 10000, { headers: BROWSER_HEADERS });
       if (!res.ok) throw new Error(`ff ${res.status}`);
       const json = await res.json();
-      return NextResponse.json(json, { headers: { "Cache-Control": "public, max-age=600" } });
+      return NextResponse.json(json, { headers: { "Cache-Control": "public, max-age=300" } });
     }
     return NextResponse.json({ error: "unknown src" }, { status: 400 });
   } catch (e: any) {

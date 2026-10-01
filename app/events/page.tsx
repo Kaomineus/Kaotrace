@@ -3,6 +3,7 @@
 import { useState } from "react";
 import EventCalendar from "@/components/EventCalendar";
 import SurpriseTracker from "@/components/SurpriseTracker";
+import EventStudy from "@/components/EventStudy";
 
 const TABS = ["CALENDAR", "SURPRISE", "EVENT STUDY"] as const;
 
@@ -32,15 +33,7 @@ export default function EventsPage() {
 
       {tab === "CALENDAR" && <EventCalendar />}
       {tab === "SURPRISE" && <SurpriseTracker />}
-      {tab !== "CALENDAR" && tab !== "SURPRISE" && (
-        <section className="t-panel">
-          <header className="t-head">
-            <span className="t-label">■ {tab}</span>
-            <span className="t-badge gold">SEGERA</span>
-          </header>
-          <div className="p-10 text-center t-label">● MODULE {tab} — CHUNK BERIKUTNYA ●</div>
-        </section>
-      )}
+      {tab === "EVENT STUDY" && <EventStudy />}
     </main>
   );
 }

@@ -5,21 +5,15 @@ import { parseFFNumber } from "@/lib/ff-parse";
 
 const RED = "#b3382c", GREEN = "#1e7a46", GOLD = "#b8860b", INK = "#191919", MUT = "#8a8578", BLUE = "#2c5f8a", ORANGE = "#c77b30";
 
-interface Ev {
-  title: string; country: string; date: string; impact: string;
-  forecast: string; previous: string; actual: string;
-}
-
-interface Entry {
-  date: string; event: string; country: string;
-  actual: number; consensus: number; surprise: number; impact: string;
-}
+interface Ev { title: string; country: string; date: string; impact: string; forecast: string; previous: string; actual: string; }
+interface Entry { date: string; event: string; country: string; actual: number; consensus: number; surprise: number; impact: string; base: "F" | "P"; }
 
 export default function SurpriseTracker({ className = "" }: { className?: string }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [lastSync, setLastSync] = useState<string>("—");
+  const [lastSync, setLastSync] = useState("—");
+  const [dbg, setDbg] = useState<{ fetched: number; withActual: number; samples: { t: string; a: string; f: string; p: string }[] }>({ fetched: 0, withActual: 0, samples: [] });
 
   useEffect(() => {
     let alive = true;
@@ -29,26 +23,45 @@ export default function SurpriseTracker({ className = "" }: { className?: string
           fetch("/api/market?src=ff&w=this").then((r) => r.json()),
           fetch("/api/market?src=ff&w=next").then((r) => r.json()),
         ]);
-        const all: Ev[] = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
+        if (!Array.isArray(a) || !Array.isArray(b)) throw new Error("feed FF tidak valid (kemungkinan rate-limit upstream)");
+        let last: Ev[] = [];
+        try { last = (await fetch("/api/market?src=ff&w=last").then((r) => r.json())) as Ev[]; } catch { /* lastweek opsional */ }
+        const all: Ev[] = [...a, ...b, ...(Array.isArray(last) ? last : [])];
 
-        const released: Entry[] = all
-          .filter((e) => Number.isFinite(parseFFNumber(e.actual)) && Number.isFinite(parseFFNumber(e.forecast)))
-          .map((e) => ({
-            date: e.date.slice(0, 10),
-            event: e.title.replace(/\s+/g, " ").trim(),
-            country: e.country,
-            actual: parseFFNumber(e.actual),
-            consensus: parseFFNumber(e.forecast),
-            surprise: parseFFNumber(e.actual) - parseFFNumber(e.forecast),
-            impact: e.impact,
-          }));
+        const withActual = all.filter((e) => (e.actual ?? "").trim() !== "" && Number.isFinite(parseFFNumber(e.actual)));
+        const released: Entry[] = withActual
+          .map((e) => {
+            const act = parseFFNumber(e.actual);
+            const fc = parseFFNumber(e.forecast);
+            const pv = parseFFNumber(e.previous);
+            const base = Number.isFinite(fc) ? fc : Number.isFinite(pv) ? pv : NaN;
+            const bTag: "F" | "P" = Number.isFinite(fc) ? "F" : "P";
+            return {
+              date: e.date.slice(0, 10),
+              event: e.title.replace(/\s+/g, " ").trim(),
+              country: e.country,
+              actual: act,
+              consensus: base,
+              surprise: act - base,
+              impact: e.impact,
+              base: bTag,
+            };
+          })
+          .filter((e) => Number.isFinite(e.surprise));
+
+        if (alive) {
+          setDbg({
+            fetched: all.length,
+            withActual: withActual.length,
+            samples: withActual.slice(0, 3).map((e) => ({ t: e.title, a: e.actual, f: e.forecast, p: e.previous })),
+          });
+        }
 
         const saved: Entry[] = JSON.parse(localStorage.getItem("md_surprise_auto") ?? "[]");
         const keyOf = (e: Entry) => `${e.date}|${e.country}|${e.event}`;
         const existing = new Set(saved.map(keyOf));
         const merged = [...saved];
         released.forEach((e) => {
-          if (!Number.isFinite(e.surprise)) return;
           const k = keyOf(e);
           if (!existing.has(k)) { merged.push(e); existing.add(k); }
         });
@@ -117,10 +130,13 @@ export default function SurpriseTracker({ className = "" }: { className?: string
               <span style={{ color: RED }}>MISS {totalMisses}</span>
             </div>
           </div>
-          <div className="text-[9px]" style={{ color: MUT }}>
-            beat = actual &gt; forecast · miss = actual &lt; forecast · balance dekat = pasar akurat price-in
+          <div className="border border-dashed border-[#9a938a] p-2 text-[9px] space-y-1" style={{ color: MUT }}>
+            <div>DEBUG FEED: fetch {dbg.fetched} · actual terisi {dbg.withActual} · saved {entries.length}</div>
+            {dbg.samples.map((s, i) => (
+              <div key={i} className="truncate" title={`${s.t} · A:${s.a} F:${s.f} P:${s.p}`}>• {s.t} → A:{s.a || "∅"} F:{s.f || "∅"} P:{s.p || "∅"}</div>
+            ))}
           </div>
-          <div className="text-[9px] border-t pt-1" style={{ color: MUT, borderColor: "#9a938a" }}>sync {lastSync} WIB · auto merge dedupe</div>
+          <div className="text-[9px] border-t pt-1" style={{ color: MUT, borderColor: "#9a938a" }}>sync {lastSync} WIB · sumber: this+last+next week</div>
         </div>
 
         <div className="col-span-12 md:col-span-6 space-y-3">
@@ -161,7 +177,7 @@ export default function SurpriseTracker({ className = "" }: { className?: string
               </div>
             </div>
           ) : (
-            <div className="p-6 text-center text-[10px]" style={{ color: MUT }}>● belum ada release dengan actual terdeteksi</div>
+            <div className="p-6 text-center text-[10px]" style={{ color: MUT }}>● belum ada release dengan actual terdeteksi · lihat DEBUG FEED di kiri</div>
           )}
 
           <div className="t-label">■ CUMULATIVE NET SURPRISE</div>
@@ -178,11 +194,12 @@ export default function SurpriseTracker({ className = "" }: { className?: string
                 <div className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: e.impact === "High" ? RED : e.impact === "Medium" ? ORANGE : GOLD }} />
                   <b className="flex-1 truncate">{e.event}</b>
+                  <span className="text-[8px]" style={{ color: MUT }}>vs {e.base}</span>
                 </div>
                 <div className="text-[9px] mt-0.5" style={{ color: MUT }}>{e.country} · {e.date}</div>
                 <div className="flex gap-2 text-[9px]">
                   <span>A: <b>{e.actual}</b></span>
-                  <span>C: {e.consensus}</span>
+                  <span>{e.base}: {e.consensus}</span>
                   <span className="ml-auto" style={{ color: e.surprise >= 0 ? GREEN : RED }}>
                     {e.surprise >= 0 ? "+" : ""}{e.surprise.toFixed(2)}
                   </span>
@@ -194,7 +211,7 @@ export default function SurpriseTracker({ className = "" }: { className?: string
       </div>
 
       <footer className="px-3 py-1.5 border-t border-[#2a2a2a] text-[9px] tracking-wider uppercase" style={{ color: MUT }}>
-        auto-detected from forex factory · actual rilis = surprise dihitung otomatis · merged ke localStorage (dedupe) · no manual input
+        auto-detect actual · baseline forecast, fallback previous (label vs F / vs P) · merged localStorage dedupe · no manual input
       </footer>
     </section>
   );

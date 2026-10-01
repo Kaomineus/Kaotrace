@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { parseFFNumber } from "@/lib/ff-parse";
 
 const RED = "#b3382c", GOLD = "#b8860b", GREEN = "#1e7a46", INK = "#191919", MUT = "#8a8578", ORANGE = "#c77b30";
 
-interface Ev { title: string; country: string; date: string; impact: string; forecast: string; previous: string; }
+interface Ev { title: string; country: string; date: string; impact: string; forecast: string; previous: string; actual: string; }
 
 const IMPACT_COLOR: Record<string, string> = { High: RED, Medium: ORANGE, Low: GOLD, Holiday: MUT };
 
@@ -23,7 +24,8 @@ export default function EventCalendar({ className = "" }: { className?: string }
           fetch("/api/market?src=ff&w=this").then((r) => r.json()),
           fetch("/api/market?src=ff&w=next").then((r) => r.json()),
         ]);
-        const all = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])] as Ev[];
+        if (!Array.isArray(a) || !Array.isArray(b)) throw new Error("feed FF tidak valid (kemungkinan rate-limit upstream)");
+        const all = [...a, ...b] as Ev[];
         if (alive) setEvs(all.sort((x, y) => x.date.localeCompare(y.date)));
       } catch (e: any) {
         if (alive) setErr(String(e?.message ?? e));
@@ -49,6 +51,7 @@ export default function EventCalendar({ className = "" }: { className?: string }
   }, [filtered]);
 
   const highCount = (evs ?? []).filter((e) => e.impact === "High").length;
+  const releasedCount = (evs ?? []).filter((e) => (e.actual ?? "").trim() !== "").length;
 
   const cd = (iso: string) => {
     const t = new Date(iso).getTime() - now;
@@ -66,6 +69,7 @@ export default function EventCalendar({ className = "" }: { className?: string }
         <span className="t-label">■ ECONOMIC CALENDAR · 2 MINGGU · WIB</span>
         <span className="flex gap-1 items-center">
           <span className="t-badge" style={{ color: RED, borderColor: RED }}>{highCount} HIGH IMPACT</span>
+          <span className="t-badge" style={{ color: GREEN, borderColor: GREEN }}>{releasedCount} RILIS</span>
           <span className="t-badge gold">FOREX FACTORY · NO KEY</span>
         </span>
       </header>
@@ -76,11 +80,7 @@ export default function EventCalendar({ className = "" }: { className?: string }
             {i === "ALL" ? "SEMUA" : i.toUpperCase()}
           </button>
         ))}
-        <select
-          value={fCty}
-          onChange={(e) => setFCty(e.target.value)}
-          className="t-badge bg-transparent outline-none cursor-pointer"
-        >
+        <select value={fCty} onChange={(e) => setFCty(e.target.value)} className="t-badge bg-transparent outline-none cursor-pointer">
           {countries.map((c) => (
             <option key={c} value={c} style={{ color: INK }}>{c === "ALL" ? "SEMUA NEGARA" : c}</option>
           ))}
@@ -97,22 +97,28 @@ export default function EventCalendar({ className = "" }: { className?: string }
             </div>
             {list.map((e, i) => {
               const soon = cd(e.date);
+              const hasActual = (e.actual ?? "").trim() !== "";
+              const a = parseFFNumber(e.actual), f = parseFFNumber(e.forecast);
+              const beat = hasActual && Number.isFinite(a) && Number.isFinite(f) ? a >= f : null;
               return (
-                <div key={`${e.date}-${i}`} className="grid grid-cols-12 gap-2 px-3 py-1.5 text-[10px] border-b border-dotted border-[#9a938a] items-center">
-                  <span className="col-span-2 font-bold">
+                <div
+                  key={`${e.date}-${i}`}
+                  className="grid grid-cols-12 gap-2 px-3 py-1.5 text-[10px] border-b border-dotted border-[#9a938a] items-center"
+                  style={{ background: hasActual ? "rgba(30,122,70,0.06)" : undefined }}
+                >
+                  <span className="col-span-2 font-bold flex items-center gap-1 flex-wrap">
                     {new Date(e.date).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })} WIB
+                    {soon && <span className="t-badge green md-blink" style={{ color: GREEN, borderColor: GREEN }}>{soon}</span>}
                   </span>
                   <span className="col-span-1" style={{ color: MUT }}>{e.country}</span>
-                  <span className="col-span-5 flex items-center gap-1.5">
+                  <span className="col-span-4 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: IMPACT_COLOR[e.impact] ?? MUT }} />
                     <b style={{ color: e.impact === "High" ? RED : INK }}>{e.title}</b>
                   </span>
-                  <span className="col-span-2" style={{ color: MUT }}>
-                    F: {e.forecast || "—"} · P: {e.previous || "—"}
+                  <span className="col-span-2">
+                    A: <b style={{ color: beat === null ? MUT : beat ? GREEN : RED }}>{hasActual ? e.actual : "—"}</b>
                   </span>
-                  <span className="col-span-2 text-right">
-                    {soon && <span className="t-badge green md-blink" style={{ color: GREEN, borderColor: GREEN }}>{soon}</span>}
-                  </span>
+                  <span className="col-span-3" style={{ color: MUT }}>F: {e.forecast || "—"} · P: {e.previous || "—"}</span>
                 </div>
               );
             })}
@@ -121,7 +127,7 @@ export default function EventCalendar({ className = "" }: { className?: string }
       </div>
 
       <footer className="px-3 py-1.5 border-t border-[#2a2a2a] text-[9px] tracking-wider uppercase" style={{ color: MUT }}>
-        titik = impact (merah high · oranye medium · emas low) · F = forecast · P = previous · countdown muncul &lt; 48 jam
+        A = actual (hijau beat · merah miss) · baris kehijauan = sudah rilis · F = forecast · P = previous · pidato/minutes wajar tanpa F/P/A
       </footer>
     </section>
   );
