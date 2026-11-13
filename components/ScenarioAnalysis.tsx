@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 const GREEN = "#1e7a46", RED = "#b3382c", GOLD = "#b8860b", INK = "#191919", MUT = "#8a8578";
 
@@ -130,7 +130,7 @@ export default function ScenarioAnalysis({ className = "" }: { className?: strin
             <div className="t-label text-center" style={{ color: MUT }}>BOBOT %</div>
             <div className="t-label text-center" style={{ color: MUT }}>IMPACT %</div>
             {assets.map((a, i) => (
-              <>
+              <Fragment key={`row-${i}`}>
                 <input
                   key={`name-${i}`}
                   type="text"
@@ -153,7 +153,7 @@ export default function ScenarioAnalysis({ className = "" }: { className?: strin
                   className="bg-transparent border border-[#2a2a2a] px-2 py-1.5 text-[11px] text-center outline-none"
                   style={{ color: (a.sensitivity[scenario] ?? 0) > 0 ? GREEN : RED }}
                 />
-              </>
+              </Fragment>
             ))}
           </div>
           <div className="text-[9px]" style={{ color: MUT }}>
